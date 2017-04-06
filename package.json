@@ -1,0 +1,21 @@
+{
+  "name": "spotiflix-server",
+  "version": "0.0.1",
+  "description": "Server for SpotiFlix streaming service",
+  "main": "index.js",
+  "author": [
+    "sebasvega95",
+    "leiverandres"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "socket.io": "^1.7.3",
+    "webm-byte-stream": "^0.1.4"
+  },
+  "devDependencies": {
+    "prettier": "^0.22.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
