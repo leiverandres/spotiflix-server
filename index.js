@@ -6,10 +6,10 @@ const ioServer = require('socket.io');
 const diskspace = require('diskspace');
 const fs = require('fs');
 
-const clientsPort = process.env.PORT;
-const brokerDir = 'http://localhost:8080/server';
+const clientsPort = process.env.PORT || '9000';
+const brokerDir = `http://${process.env.BROKER || 'localhost:8080'}/server`;
 const myDirection = `localhost:${clientsPort}`;
-const curLoad = 0;
+let curLoad = 0;
 let clients = {};
 
 const brokerSocket = ioClient(brokerDir);
@@ -17,15 +17,15 @@ const clientSocket = ioServer(clientsPort);
 
 function startServer() {
   clientSocket.on('connection', socket => {
-    console.log('A client connected');
+    console.log('Client connected', socket.id);
 
     socket.on('upload', req => {
       console.log('Received file', req.filename);
+      fs.appendFileSync(`fs/${req.filename}`, req.data);
       if (req.first) {
         curLoad += req.fileSize;
         updateServerPriority(brokerSocket);
       }
-      fs.appendFileSync(`fs/${req.filename}`, req.data);
       if (req.end) {
         curLoad -= req.fileSize;
         updateServerPriority(brokerSocket);
@@ -33,6 +33,7 @@ function startServer() {
     });
 
     socket.on('download_init', req => {
+      clients[socket.id] = {};
       clients[socket.id].queue = [];
       curLoad += fs.statSync(`fs/${req.filename}`).size;
       updateServerPriority(brokerSocket);
@@ -67,7 +68,8 @@ function startServer() {
     });
 
     socket.on('disconnect', () => {
-      delete clients[socket.id].queue;
+      console.log('Client disconnected', socket.id);
+      delete clients[socket.id];
     });
   });
 
