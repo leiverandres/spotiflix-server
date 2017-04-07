@@ -156,6 +156,10 @@ debug@~0.7.2:
   version "0.7.4"
   resolved "https://registry.yarnpkg.com/debug/-/debug-0.7.4.tgz#06e1ea8082c2cb14e39806e22e2f6f757f92af39"
 
+diskspace@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/diskspace/-/diskspace-2.0.0.tgz#fde3b88d5cd5e15d097bb42e550733e2588cc913"
+
 ebml@^2.1.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/ebml/-/ebml-2.2.0.tgz#22de549106e9d5bb0c4d319adab92707f6efd5c3"
@@ -400,7 +404,7 @@ socket.io-adapter@0.5.0:
     debug "2.3.3"
     socket.io-parser "2.3.1"
 
-socket.io-client@1.7.3:
+socket.io-client@1.7.3, socket.io-client@^1.7.3:
   version "1.7.3"
   resolved "https://registry.yarnpkg.com/socket.io-client/-/socket.io-client-1.7.3.tgz#b30e86aa10d5ef3546601c09cde4765e381da377"
   dependencies:

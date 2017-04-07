@@ -9,7 +9,9 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "diskspace": "^2.0.0",
     "socket.io": "^1.7.3",
+    "socket.io-client": "^1.7.3",
     "webm-byte-stream": "^0.1.4"
   },
   "devDependencies": {

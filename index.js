@@ -1,57 +1,124 @@
-const clientsPort = 9000;
-const serverIo = require('socket.io')(clientsPort);
-const fs = require('fs');
+// TODO: pass in env brokerDir, my ip address
+
 const WebMByteStream = require('webm-byte-stream');
+const ioClient = require('socket.io-client');
+const ioServer = require('socket.io');
+const diskspace = require('diskspace');
+const fs = require('fs');
 
-let queues = {};
+const clientsPort = process.env.PORT;
+const brokerDir = 'http://localhost:8080/server';
+const myDirection = `localhost:${clientsPort}`;
+const curLoad = 0;
+let clients = {};
 
-serverIo.on('connection', socket => {
-  console.log('A client connected');
-  console.log(queues);
+const brokerSocket = ioClient(brokerDir);
+const clientSocket = ioServer(clientsPort);
 
-  socket.on('upload', req => {
-    console.log('Received file', req.filename);
-    fs.appendFileSync(`fs/${req.filename}`, req.data);
-  });
+function startServer() {
+  clientSocket.on('connection', socket => {
+    console.log('A client connected');
 
-  socket.on('download_init', req => {
-    queues[socket.id] = [];
-    let webmstream = new WebMByteStream();
-
-    webmstream.on('Initialization Segment', data => {
-      console.log('Init header');
-      socket.emit('download_init', { data });
+    socket.on('upload', req => {
+      console.log('Received file', req.filename);
+      if (req.first) {
+        curLoad += req.fileSize;
+        updateServerPriority(brokerSocket);
+      }
+      fs.appendFileSync(`fs/${req.filename}`, req.data);
+      if (req.end) {
+        curLoad -= req.fileSize;
+        updateServerPriority(brokerSocket);
+      }
     });
 
-    webmstream.on('Media Segment', data => {
-      let cluster = data.cluster;
-      let timecode = data.timecode;
-      // let duration = data.duration;
-      if (queues[socket.id])
-        queues[socket.id].push({ data: cluster, timecode });
+    socket.on('download_init', req => {
+      clients[socket.id].queue = [];
+      curLoad += fs.statSync(`fs/${req.filename}`).size;
+      updateServerPriority(brokerSocket);
+      let webmstream = new WebMByteStream();
+
+      webmstream.on('Initialization Segment', data => {
+        console.log('Init header');
+        socket.emit('download_init', { data });
+      });
+
+      webmstream.on('Media Segment', data => {
+        let cluster = data.cluster;
+        let timecode = data.timecode;
+        // let duration = data.duration;
+        if (clients[socket.id].queue)
+          clients[socket.id].queue.push({ data: cluster, timecode });
+      });
+
+      let file = fs.createReadStream(`fs/${req.filename}`, { flags: 'r' });
+      file.on('data', data => webmstream.write(data));
     });
 
-    let file = fs.createReadStream(`fs/${req.filename}`, { flags: 'r' });
-    file.on('data', data => webmstream.write(data));
+    socket.on('download', req => {
+      console.log('pending', clients[socket.id].queue.length);
+      if (clients[socket.id].queue.length) {
+        socket.emit('download', clients[socket.id].queue.shift());
+      } else {
+        curLoad -= fs.statSync(`fs/${req.filename}`).size;
+        updateServerPriority(brokerSocket);
+        socket.emit('download', { end: true });
+      }
+    });
+
+    socket.on('disconnect', () => {
+      delete clients[socket.id].queue;
+    });
   });
 
-  socket.on('download', req => {
-    console.log('pending', queues[socket.id].length);
-    if (queues[socket.id].length) {
-      socket.emit('download', queues[socket.id].shift());
-    } else {
-      socket.emit('download', { end: true });
-    }
-  });
-
-  socket.on('disconnect', () => {
-    delete queues[socket.id];
-  });
-});
+  console.log('Listening on port', clientsPort);
+}
 
 try {
   fs.mkdirSync('./fs');
 } catch (err) {
   console.log('FS exists');
 }
-console.log('Listening on port', clientsPort);
+// ----------------------------------------------------------------------------
+// SERVER-BROKER CONNECTION
+function getDiskSpace(cb) {
+  diskspace.check('/', (err, result) => {
+    cb(err, result.used);
+  });
+}
+
+brokerSocket.on('connect', function() {
+  getDiskSpace((err, diskUsed) => {
+    const req = {
+      dir: myDirection,
+      disk: diskUsed
+    };
+    console.log(`Disk space: ${req.disk}`);
+    brokerSocket.emit('register_server', req);
+  });
+});
+
+brokerSocket.on('register_server', () => {
+  console.log('Successfully registered to broker');
+  startServer();
+});
+
+brokerSocket.on('update_server', () => {
+  console.log('Priority successfully updated in broker');
+});
+
+function updateServerPriority(wsBroker) {
+  getDiskSpace((err, diskUsed) => {
+    const req = {
+      dir: myDirection,
+      disk: diskUsed,
+      load: curLoad
+    };
+    wsBroker.emit('update_server', req);
+  });
+}
+
+brokerSocket.on('disconnect', () => {
+  console.log('Disconnected from broker');
+});
+// ----------------------------------------------------------------------------
