@@ -5,10 +5,11 @@ const ioClient = require('socket.io-client');
 const ioServer = require('socket.io');
 const diskspace = require('diskspace');
 const fs = require('fs');
+const ip = require('ip');
 
 const clientsPort = process.env.PORT || '9000';
 const brokerDir = `http://${process.env.BROKER || 'localhost:8080'}/server`;
-const myDirection = `localhost:${clientsPort}`;
+const myDirection = `${ip.address()}:${clientsPort}`;
 let curLoad = 0;
 let clients = {};
 
